@@ -1,8 +1,8 @@
-const { spawn } = require("child_process");
+import { spawn } from "child_process";
 
 const _loading = new Set();
 
-function createGitStream(repo, cwd) {
+export function createGitStream(repo, cwd) {
   return new Promise((resolve, reject) => {
     const child = spawn("git", ["clone", repo, "--progress"], {
       cwd,
@@ -28,7 +28,3 @@ function createGitStream(repo, cwd) {
     });
   });
 }
-
-module.exports = {
-  createGitStream,
-};

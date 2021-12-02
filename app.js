@@ -1,22 +1,18 @@
-var createError = require("http-errors");
-var express = require("express");
-var path = require("path");
-var cookieParser = require("cookie-parser");
-var logger = require("morgan");
-const session = require("express-session");
+import createError from "http-errors";
+import express from "express";
+import cookieParser from "cookie-parser";
+import logger from "morgan";
+import session from "express-session";
+import debugPrinter from "debug";
+import expressWs from "express-ws";
 
-var indexRouter = require("./routes/index");
-var usersRouter = require("./routes/users");
-const moleculeRouter = require("./routes/mo");
-const websocketRouter = require("./routes/websocket");
+import indexRouter from "./routes/index.js";
+import usersRouter from "./routes/users.js";
+import moleculeRouter from "./routes/mo.js";
+import websocketRouter from "./routes/websocket.js";
 
-// var app = express();
-
-const { app } = require("express-ws")(express());
-
-// view engine setup
-app.set("views", path.join(__dirname, "views"));
-app.set("view engine", "jade");
+const debug = debugPrinter("molecule-server:server");
+const { app } = expressWs(express());
 
 app.use(logger("dev"));
 app.use(express.json());
@@ -29,13 +25,6 @@ app.use(
     saveUninitialized: true,
   })
 );
-app.use(express.static(path.join(__dirname, "public")));
-
-// app.ws("/websocket", function (ws, req) {
-//   ws.on("message", function (msg) {
-//     console.log(msg);
-//   });
-// });
 
 app.use("/", indexRouter);
 app.use("/users", usersRouter);
@@ -58,6 +47,6 @@ app.use(function (err, req, res, next) {
   res.render("error");
 });
 
-// module.exports = app;
-
-app.listen(3000);
+app.listen(3000, () => {
+  debug("Listening on 3000");
+});

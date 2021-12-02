@@ -2,6 +2,7 @@
   "name": "molecule-server",
   "version": "0.0.0",
   "private": true,
+  "type": "module",
   "scripts": {
     "start": "nodemon --ignore ./*-repos/ app.js",
     "debug": "DEBUG=molecule-server:* npm start"

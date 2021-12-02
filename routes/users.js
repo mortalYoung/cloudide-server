@@ -1,7 +1,7 @@
-var express = require("express");
-var router = express.Router();
+import { Router } from "express";
+var router = Router();
 
-const { getUsers, setUsers } = require("../utils");
+import { getUsers, setUsers } from "../utils/index.js";
 
 router.post("/login", function (req, res, next) {
   const { username, password } = req.body;
@@ -34,4 +34,4 @@ router.get("/isLogin", function (req, res, next) {
   }
 });
 
-module.exports = router;
+export default router;

@@ -1,16 +1,23 @@
-var express = require("express");
-var router = express.Router();
-const fs = require("fs");
-const path = require("path");
-const { spawn } = require("child_process");
+import { Router } from "express";
+import {
+  readdirSync,
+  createReadStream,
+  writeFileSync,
+  appendFileSync,
+  mkdirSync,
+  lstatSync,
+} from "fs";
+import { join } from "path";
+import { spawn } from "child_process";
 
-const {
+import {
   getRepoByUser,
   createRepoByUser,
   getBaseRepo,
   getDirsByPath,
-} = require("../utils");
-const { createGitStream } = require("../task/gitStream");
+} from "../utils/index.js";
+import { createGitStream } from "../task/gitStream.js";
+var router = Router();
 
 // 获取当前用户下的所有仓库
 router.get("/getRepo", function (req, res) {
@@ -27,9 +34,9 @@ router.get("/getRepo", function (req, res) {
     success: true,
     data: {
       repos: repos.map((repo) => {
-        const loading = !fs
-          .readdirSync(path.join(getBaseRepo(username), repo.name))
-          .filter((path) => !path.startsWith(".")).length;
+        const loading = !readdirSync(
+          join(getBaseRepo(username), repo.name)
+        ).filter((path) => !path.startsWith(".")).length;
         return {
           repo: repo.name,
           loading,
@@ -101,7 +108,7 @@ router.get("/getRepoDir", function (req, res) {
     return;
   }
 
-  const repoPath = path.join(getBaseRepo(username), repo);
+  const repoPath = join(getBaseRepo(username), repo);
   const dirs = getDirsByPath(repoPath);
   res.json({
     success: true,
@@ -127,7 +134,7 @@ router.get("/getBranch", function (req, res) {
     });
     return;
   }
-  const repoPath = path.join(getBaseRepo(username), repo);
+  const repoPath = join(getBaseRepo(username), repo);
   //  git symbolic-ref --short HEAD
   const child = spawn("git", ["symbolic-ref", "--short", "HEAD"], {
     cwd: repoPath,
@@ -142,6 +149,10 @@ router.get("/getBranch", function (req, res) {
         data: currentBranch,
       });
     }
+  });
+
+  child.on("error", function (err) {
+    console.log("err:", err);
   });
 
   child.stdout.on("data", function (data) {
@@ -193,9 +204,7 @@ router.post("/getFileContent", function (req, res) {
   });
 
   child.stdout.on("data", function (data) {
-    const read = fs.createReadStream(
-      path.join(cwd, data.toString().replace("\n", ""))
-    );
+    const read = createReadStream(join(cwd, data.toString().replace("\n", "")));
 
     read.on("data", function (chunk) {
       res.write(chunk);
@@ -247,7 +256,7 @@ router.post("/saveFile", function (req, res) {
   });
 
   child.stdout.on("data", function (data) {
-    fs.writeFileSync(path.join(cwd, data.toString().replace("\n", "")), value);
+    writeFileSync(join(cwd, data.toString().replace("\n", "")), value);
     res.json({
       success: true,
     });
@@ -281,7 +290,7 @@ router.post("/createFileOrFolder", function (req, res) {
   }
   const { parentId, name, type } = req.body;
   const cwd = getBaseRepo(username);
-  const repoPath = path.join(cwd, repo);
+  const repoPath = join(cwd, repo);
   if (parentId) {
     const [_, ino] = parentId.split("~");
     // find ./ -inum 16353560
@@ -294,12 +303,12 @@ router.post("/createFileOrFolder", function (req, res) {
     });
 
     child.stdout.on("data", function (data) {
-      const dirPath = path.join(cwd, data.toString().replace("\n", ""));
+      const dirPath = join(cwd, data.toString().replace("\n", ""));
       try {
         if (type === "File") {
-          fs.appendFileSync(path.join(dirPath, name), "");
+          appendFileSync(join(dirPath, name), "");
         } else {
-          fs.mkdirSync(path.join(dirPath, name));
+          mkdirSync(join(dirPath, name));
         }
       } catch (err) {
         res.json({
@@ -307,7 +316,7 @@ router.post("/createFileOrFolder", function (req, res) {
           message: err.message,
         });
       }
-      const lstat = fs.lstatSync(path.join(dirPath, name));
+      const lstat = lstatSync(join(dirPath, name));
       res.json({
         success: true,
         data: {
@@ -328,11 +337,11 @@ router.post("/createFileOrFolder", function (req, res) {
   } else {
     // 根目录下
     if (type === "File") {
-      fs.appendFileSync(path.join(repoPath, name), "");
+      appendFileSync(join(repoPath, name), "");
     } else {
-      fs.mkdirSync(path.join(repoPath, name));
+      mkdirSync(join(repoPath, name));
     }
-    const lstat = fs.lstatSync(path.join(repoPath, name));
+    const lstat = lstatSync(join(repoPath, name));
     res.json({
       success: true,
       data: {
@@ -345,4 +354,4 @@ router.post("/createFileOrFolder", function (req, res) {
   }
 });
 
-module.exports = router;
+export default router;

@@ -1,16 +1,12 @@
-var express = require("express");
-var router = express.Router();
-const app = express();
-const expressWs = require("express-ws")(app);
-const fs = require("fs");
-const path = require("path");
-const { STATUS } = require("../const");
-const { getGitLog } = require("../task/gitStream");
+import express, { Router } from "express";
+import expressWs from "express-ws";
+import { join } from "path";
+import { getBaseRepo } from "../utils/index.js";
+import { spawn } from "child_process";
 
-const { getBaseRepo } = require("../utils");
-const { spawn } = require("child_process");
+expressWs(express());
+var router = Router();
 
-let timeout = null;
 router.ws("/", function (ws, req) {
   ws.on("close", function (code) {
     console.log("close:", code);
@@ -18,7 +14,7 @@ router.ws("/", function (ws, req) {
   ws.on("message", (data) => {
     const [command, ...args] = data.toString().split(" ");
     const { username, repo } = req.cookies;
-    const repoPath = path.join(getBaseRepo(username), repo);
+    const repoPath = join(getBaseRepo(username), repo);
 
     console.log("command, options:", command, args);
 
@@ -43,4 +39,4 @@ router.ws("/", function (ws, req) {
   });
 });
 
-module.exports = router;
+export default router;

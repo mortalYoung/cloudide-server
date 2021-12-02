@@ -1,10 +1,11 @@
-const fs = require("fs");
-const path = require("path");
-
+import fs from "fs";
+import path from "path";
+import { fileURLToPath } from "url";
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const basePath = path.join(__dirname, "..");
 const dbPath = path.join(basePath, ".db.json");
 
-function getUsers() {
+export function getUsers() {
   if (fs.existsSync(dbPath)) {
     const db = JSON.parse(fs.readFileSync(dbPath, "utf-8"));
     return db.users;
@@ -13,7 +14,7 @@ function getUsers() {
   }
 }
 
-function setUsers(username) {
+export function setUsers(username) {
   if (fs.existsSync(dbPath)) {
     const db = JSON.parse(fs.readFileSync(dbPath, "utf-8"));
     db.users = db.users || [];
@@ -36,11 +37,11 @@ function setUsers(username) {
   }
 }
 
-function getBaseRepo(username) {
+export function getBaseRepo(username) {
   return path.join(basePath, `${username}-repos`);
 }
 
-function getRepoByUser(username) {
+export function getRepoByUser(username) {
   const reposBasePath = getBaseRepo(username);
   if (fs.existsSync(reposBasePath)) {
     return fs
@@ -51,14 +52,14 @@ function getRepoByUser(username) {
   }
 }
 
-function createRepoByUser(username) {
+export function createRepoByUser(username) {
   const reposBasePath = getBaseRepo(username);
   if (!fs.existsSync(reposBasePath)) {
     fs.mkdirSync(reposBasePath);
   }
 }
 
-function getDirsByPath(dirPath) {
+export function getDirsByPath(dirPath) {
   if (fs.existsSync(dirPath) && fs.lstatSync(dirPath).isDirectory()) {
     const dirs = fs.readdirSync(dirPath, { withFileTypes: true });
     return dirs.map((dir) => {
@@ -77,12 +78,3 @@ function getDirsByPath(dirPath) {
     return [];
   }
 }
-
-module.exports = {
-  getUsers,
-  setUsers,
-  getRepoByUser,
-  getBaseRepo,
-  createRepoByUser,
-  getDirsByPath,
-};

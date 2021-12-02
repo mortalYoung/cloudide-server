@@ -129,11 +129,6 @@ router.get("/getBranch", async function (req, res) {
 // 获取文件内容
 router.post("/getFileContent", async function (req, res) {
   const { username } = req.cookies;
-  res.writeHead(200, {
-    "Content-Type": "text/plain",
-    "Transfer-Encoding": "chunked",
-  });
-
   const { fileId } = req.body;
   const [_, ino] = fileId.split("~");
   const cwd = getBaseRepo(username);
@@ -147,11 +142,18 @@ router.post("/getFileContent", async function (req, res) {
     });
   });
   const file = fileArray.join("");
-  const read = createReadStream(join(cwd, file.replace("\n", "")));
-  read.on("data", function (chunk) {
-    res.write(chunk);
+  const path = join(cwd, file.replace("\n", ""));
+  const stat = lstatSync(path);
+  const read = createReadStream(path);
+  
+  read.on("open", function () {
+    res.writeHead(200, {
+      "Content-Length": stat.size,
+      "Content-Type": "image/png",
+    });
   });
 
+  read.pipe(res);
   read.on("close", function (close) {
     res.end();
   });

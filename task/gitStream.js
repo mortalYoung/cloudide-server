@@ -15,10 +15,12 @@ export function createGitStream(repo, cwd) {
         console.log(`grep process exited with code ${code}`);
       }
     });
+    child.stdout.on("data", (data) => {
+      console.log(`data:${data}]`);
+    });
 
     child.stderr.on("data", (data) => {
       const val = data.toString();
-      console.error(`grep stderr: ${val}`);
       if (val.startsWith("fatal")) {
         reject(val);
       } else {

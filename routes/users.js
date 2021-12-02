@@ -1,7 +1,7 @@
 import { Router } from "express";
-var router = Router();
-
 import { getUsers, setUsers } from "../utils/index.js";
+
+const router = Router();
 
 router.post("/login", function (req, res, next) {
   const { username, password } = req.body;

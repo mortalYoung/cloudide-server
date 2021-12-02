@@ -15,13 +15,13 @@ import {
   createRepoByUser,
   getBaseRepo,
   getDirsByPath,
+  promisifySpawn,
 } from "../utils/index.js";
 import { createGitStream } from "../task/gitStream.js";
-var router = Router();
+const router = Router();
 
-// 获取当前用户下的所有仓库
-router.get("/getRepo", function (req, res) {
-  const { username } = req.cookies;
+router.use("/", function (req, res, next) {
+  const { username, repo } = req.cookies;
   if (!username) {
     res.json({
       success: false,
@@ -29,6 +29,23 @@ router.get("/getRepo", function (req, res) {
     });
     return;
   }
+
+  const DONT_NEED_REPO = ["getRepo", "createRepo", "chooseRepo"];
+  if (DONT_NEED_REPO.includes(req.url)) {
+    if (!repo) {
+      res.json({
+        success: false,
+        message: "未选择仓库",
+      });
+      return;
+    }
+  }
+  next();
+});
+
+// 获取当前用户下的所有仓库
+router.get("/getRepo", function (req, res) {
+  const { username } = req.cookies;
   const repos = getRepoByUser(username);
   res.json({
     success: true,
@@ -49,13 +66,6 @@ router.get("/getRepo", function (req, res) {
 // 为当前用户创建仓库
 router.post("/createRepo", function (req, res) {
   const { username } = req.cookies;
-  if (!username) {
-    res.json({
-      success: false,
-      message: "未登陆",
-    });
-    return;
-  }
   const { repo } = req.body;
   createRepoByUser(username);
   createGitStream(repo, getBaseRepo(username))
@@ -74,14 +84,6 @@ router.post("/createRepo", function (req, res) {
 
 // 当前用户选择仓库
 router.post("/chooseRepo", function (req, res) {
-  const { username } = req.cookies;
-  if (!username) {
-    res.json({
-      success: false,
-      message: "未登陆",
-    });
-    return;
-  }
   const { repo } = req.body;
   res.cookie("repo", repo);
   res.json({
@@ -92,22 +94,6 @@ router.post("/chooseRepo", function (req, res) {
 // 获取当前用户选择的仓库的目录
 router.get("/getRepoDir", function (req, res) {
   const { username, repo } = req.cookies;
-  if (!username) {
-    res.json({
-      success: false,
-      message: "未登陆",
-    });
-    return;
-  }
-
-  if (!repo) {
-    res.json({
-      success: false,
-      message: "未选择仓库",
-    });
-    return;
-  }
-
   const repoPath = join(getBaseRepo(username), repo);
   const dirs = getDirsByPath(repoPath);
   res.json({
@@ -117,75 +103,32 @@ router.get("/getRepoDir", function (req, res) {
 });
 
 // 获取当前仓库的分支
-router.get("/getBranch", function (req, res) {
+router.get("/getBranch", async function (req, res) {
   const { username, repo } = req.cookies;
-  if (!username) {
-    res.json({
-      success: false,
-      message: "未登陆",
-    });
-    return;
-  }
-
-  if (!repo) {
-    res.json({
-      success: false,
-      message: "未选择仓库",
-    });
-    return;
-  }
   const repoPath = join(getBaseRepo(username), repo);
   //  git symbolic-ref --short HEAD
-  const child = spawn("git", ["symbolic-ref", "--short", "HEAD"], {
-    cwd: repoPath,
-    stdio: "pipe",
-  });
-
-  let currentBranch = "";
-  child.on("close", function () {
-    if (currentBranch) {
-      res.json({
-        success: true,
-        data: currentBranch,
-      });
+  const branch = await promisifySpawn(
+    "git",
+    ["symbolic-ref", "--short", "HEAD"],
+    {
+      cwd: repoPath,
+      stdio: "pipe",
     }
-  });
-
-  child.on("error", function (err) {
-    console.log("err:", err);
-  });
-
-  child.stdout.on("data", function (data) {
-    currentBranch = data.toString();
-  });
-
-  child.stderr.on("error", function (err) {
+  ).catch((err) => {
     res.json({
       success: false,
       message: err.message,
     });
   });
+  res.json({
+    success: true,
+    data: branch.join(""),
+  });
 });
 
 // 获取文件内容
-router.post("/getFileContent", function (req, res) {
-  const { username, repo } = req.cookies;
-  if (!username) {
-    res.json({
-      success: false,
-      message: "未登陆",
-    });
-    return;
-  }
-
-  if (!repo) {
-    res.json({
-      success: false,
-      message: "未选择仓库",
-    });
-    return;
-  }
-
+router.post("/getFileContent", async function (req, res) {
+  const { username } = req.cookies;
   res.writeHead(200, {
     "Content-Type": "text/plain",
     "Transfer-Encoding": "chunked",
@@ -195,126 +138,67 @@ router.post("/getFileContent", function (req, res) {
   const [_, ino] = fileId.split("~");
   const cwd = getBaseRepo(username);
   // find ./ -inum 16353560 | xargs cat
-  const child = spawn("find", ["./", "-inum", ino], {
+  const fileArray = await promisifySpawn("find", ["./", "-inum", ino], {
     cwd,
-  });
-
-  child.on("close", function (signal) {
-    console.log("signal:", signal);
-  });
-
-  child.stdout.on("data", function (data) {
-    const read = createReadStream(join(cwd, data.toString().replace("\n", "")));
-
-    read.on("data", function (chunk) {
-      res.write(chunk);
-    });
-
-    read.on("close", function (close) {
-      res.end();
-    });
-  });
-
-  child.stderr.on("error", function (error) {
+  }).catch((err) => {
     res.json({
       success: false,
-      message: error.message,
+      message: err.message,
     });
+  });
+  const file = fileArray.join("");
+  const read = createReadStream(join(cwd, file.replace("\n", "")));
+  read.on("data", function (chunk) {
+    res.write(chunk);
+  });
+
+  read.on("close", function (close) {
+    res.end();
   });
 });
 
 // 保存文件内容
-router.post("/saveFile", function (req, res) {
-  const { username, repo } = req.cookies;
-  if (!username) {
-    res.json({
-      success: false,
-      message: "未登陆",
-    });
-    return;
-  }
-
-  if (!repo) {
-    res.json({
-      success: false,
-      message: "未选择仓库",
-    });
-    return;
-  }
-
+router.post("/saveFile", async function (req, res) {
+  const { username } = req.cookies;
   const { id: fileId, value } = req.body;
   const [_, ino] = fileId.split("~");
 
   const cwd = getBaseRepo(username);
   // find ./ -inum 16353560
-  const child = spawn("find", ["./", "-inum", ino], {
+  const fileArray = await promisifySpawn("find", ["./", "-inum", ino], {
     cwd,
-  });
-
-  child.on("close", function (signal) {
-    console.log("signal:", signal);
-  });
-
-  child.stdout.on("data", function (data) {
-    writeFileSync(join(cwd, data.toString().replace("\n", "")), value);
-    res.json({
-      success: true,
-    });
-  });
-
-  child.stderr.on("error", function (error) {
+  }).catch((err) => {
     res.json({
       success: false,
-      message: error.message,
+      message: err.message,
     });
+  });
+  const file = fileArray.join("");
+  writeFileSync(join(cwd, file.replace("\n", "")), value);
+  res.json({
+    success: true,
   });
 });
 
 // 创建新文件或文件夹
-router.post("/createFileOrFolder", function (req, res) {
+router.post("/createFileOrFolder", async function (req, res) {
   const { username, repo } = req.cookies;
-  if (!username) {
-    res.json({
-      success: false,
-      message: "未登陆",
-    });
-    return;
-  }
-
-  if (!repo) {
-    res.json({
-      success: false,
-      message: "未选择仓库",
-    });
-    return;
-  }
   const { parentId, name, type } = req.body;
   const cwd = getBaseRepo(username);
   const repoPath = join(cwd, repo);
   if (parentId) {
-    const [_, ino] = parentId.split("~");
-    // find ./ -inum 16353560
-    const child = spawn("find", ["./", "-inum", ino], {
-      cwd,
-    });
-
-    child.on("close", function (signal) {
-      console.log("signal:", signal);
-    });
-
-    child.stdout.on("data", function (data) {
-      const dirPath = join(cwd, data.toString().replace("\n", ""));
-      try {
-        if (type === "File") {
-          appendFileSync(join(dirPath, name), "");
-        } else {
-          mkdirSync(join(dirPath, name));
-        }
-      } catch (err) {
-        res.json({
-          success: false,
-          message: err.message,
-        });
+    try {
+      const [_, ino] = parentId.split("~");
+      // find ./ -inum 16353560
+      const fileArray = await promisifySpawn("find", ["./", "-inum", ino], {
+        cwd,
+      });
+      const file = fileArray.join("");
+      const dirPath = join(cwd, file.replace("\n", ""));
+      if (type === "File") {
+        appendFileSync(join(dirPath, name), "");
+      } else {
+        mkdirSync(join(dirPath, name));
       }
       const lstat = lstatSync(join(dirPath, name));
       res.json({
@@ -326,31 +210,36 @@ router.post("/createFileOrFolder", function (req, res) {
           children: [],
         },
       });
-    });
-
-    child.stderr.on("error", function (error) {
+    } catch (error) {
+      res.json({
+        success: false,
+        message: err.message,
+      });
+    }
+  } else {
+    // 根目录下
+    try {
+      if (type === "File") {
+        appendFileSync(join(repoPath, name), "");
+      } else {
+        mkdirSync(join(repoPath, name));
+      }
+      const lstat = lstatSync(join(repoPath, name));
+      res.json({
+        success: true,
+        data: {
+          uid: `${lstat.dev}~${lstat.ino}`,
+          name,
+          isLeaf: type === "File",
+          children: [],
+        },
+      });
+    } catch (error) {
       res.json({
         success: false,
         message: error.message,
       });
-    });
-  } else {
-    // 根目录下
-    if (type === "File") {
-      appendFileSync(join(repoPath, name), "");
-    } else {
-      mkdirSync(join(repoPath, name));
     }
-    const lstat = lstatSync(join(repoPath, name));
-    res.json({
-      success: true,
-      data: {
-        uid: `${lstat.dev}~${lstat.ino}`,
-        name,
-        isLeaf: type === "File",
-        children: [],
-      },
-    });
   }
 });
 

@@ -6,7 +6,6 @@ import session from "express-session";
 import debugPrinter from "debug";
 import expressWs from "express-ws";
 
-import indexRouter from "./routes/index.js";
 import usersRouter from "./routes/users.js";
 import moleculeRouter from "./routes/mo.js";
 import websocketRouter from "./routes/websocket.js";
@@ -14,7 +13,14 @@ import websocketRouter from "./routes/websocket.js";
 const debug = debugPrinter("molecule-server:server");
 const { app } = expressWs(express());
 
-app.use(logger("dev"));
+// add logger
+logger.token("params", function getId(req) {
+  return JSON.stringify(req.body);
+});
+app.use(
+  logger('[:date[clf]] ":method :url :params HTTP/:http-version" :status')
+);
+
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 app.use(cookieParser("molecule"));
@@ -26,7 +32,6 @@ app.use(
   })
 );
 
-app.use("/", indexRouter);
 app.use("/users", usersRouter);
 app.use("/mo", moleculeRouter);
 app.use("/websocket", websocketRouter);
@@ -40,7 +45,7 @@ app.use(function (req, res, next) {
 app.use(function (err, req, res, next) {
   // set locals, only providing error in development
   res.locals.message = err.message;
-  res.locals.error = req.app.get("env") === "development" ? err : {};
+  res.locals.error = err;
 
   // render the error page
   res.status(err.status || 500);

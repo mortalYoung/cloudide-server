@@ -1,6 +1,8 @@
 import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
+import { spawn } from "child_process";
+
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const basePath = path.join(__dirname, "..");
 const dbPath = path.join(basePath, ".db.json");
@@ -77,4 +79,28 @@ export function getDirsByPath(dirPath) {
   } else {
     return [];
   }
+}
+
+export function promisifySpawn(command, args, options = {}) {
+  return new Promise((resolve, reject) => {
+    const opts = Object.assign({ stdio: "pipe" }, options);
+    const child = spawn(command, args, opts);
+
+    const values = [];
+    child.on("close", function () {
+      resolve(values);
+    });
+
+    child.on("error", function (err) {
+      reject(err);
+    });
+
+    child.stdout.on("data", function (data) {
+      values.push(data.toString());
+    });
+
+    child.stderr.on("error", function (err) {
+      reject(err);
+    });
+  });
 }

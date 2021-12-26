@@ -16,6 +16,15 @@ export function getUsers() {
   }
 }
 
+export function getShared() {
+  if (fs.existsSync(dbPath)) {
+    const db = JSON.parse(fs.readFileSync(dbPath, "utf-8"));
+    return db.shared;
+  } else {
+    return null;
+  }
+}
+
 export function setUsers(username) {
   if (fs.existsSync(dbPath)) {
     const db = JSON.parse(fs.readFileSync(dbPath, "utf-8"));
@@ -37,6 +46,41 @@ export function setUsers(username) {
       )
     );
   }
+}
+
+export function setShared(shared) {
+  if (fs.existsSync(dbPath)) {
+    const db = JSON.parse(fs.readFileSync(dbPath, "utf-8"));
+    db.shared = db.shared || [];
+    if (db.shared.find((s) => s.key === shared.key)) {
+      return;
+    }
+    db.shared.push(shared);
+    fs.writeFileSync(dbPath, JSON.stringify(db, null, 2));
+  } else {
+    fs.writeFileSync(
+      dbPath,
+      JSON.stringify(
+        {
+          shared: [shared],
+        },
+        null,
+        2
+      )
+    );
+  }
+}
+
+export function deleteShared(key) {
+  if (!fs.existsSync(dbPath)) return;
+  const db = JSON.parse(fs.readFileSync(dbPath, "utf-8"));
+  db.shared = db.shared || [];
+
+  const index = db.shared.findIndex((s) => s.key === key);
+  if (index === -1) return;
+
+  db.shared.splice(index, 1);
+  fs.writeFileSync(dbPath, JSON.stringify(db, null, 2));
 }
 
 export function getBaseRepo(username) {

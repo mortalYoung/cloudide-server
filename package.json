@@ -15,7 +15,11 @@
     "express-ws": "^5.0.2",
     "http-errors": "~1.6.3",
     "jade": "~1.11.0",
+    "md5": "^2.3.0",
     "morgan": "~1.9.1",
     "nodemon": "^2.0.15"
+  },
+  "devDependencies": {
+    "@types/md5": "^2.3.1"
   }
 }

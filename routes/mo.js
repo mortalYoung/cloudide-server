@@ -7,6 +7,7 @@ import {
   mkdirSync,
   lstatSync,
 } from "fs";
+import md5 from "md5";
 import { join } from "path";
 import { spawn } from "child_process";
 
@@ -16,6 +17,9 @@ import {
   getBaseRepo,
   getDirsByPath,
   promisifySpawn,
+  setShared,
+  getShared,
+  deleteShared
 } from "../utils/index.js";
 import { createGitStream } from "../task/gitStream.js";
 const router = Router();
@@ -145,7 +149,7 @@ router.post("/getFileContent", async function (req, res) {
   const path = join(cwd, file.replace("\n", ""));
   const stat = lstatSync(path);
   const read = createReadStream(path);
-  
+
   read.on("open", function () {
     res.writeHead(200, {
       "Content-Length": stat.size,
@@ -243,6 +247,69 @@ router.post("/createFileOrFolder", async function (req, res) {
       });
     }
   }
+});
+
+// 获取当前仓库的分享状态
+router.get("/share", function (req, res) {
+  const { username, repo } = req.cookies;
+  if (!username || !repo) {
+    res.json({
+      success: false,
+      message: "无法获取用户名或仓库，请联系管理员",
+    });
+    return;
+  }
+  const shared = getShared();
+  if (shared) {
+    const target = shared.find((s) => s.key === `${username}-${repo}`);
+    if (target) {
+      res.json({
+        success: true,
+        data: target,
+      });
+    }
+  }
+
+  res.json({
+    success: true,
+    data: null,
+  });
+});
+
+// 取消分享
+router.post("/unShare", function (req, res) {
+  const { username, repo } = req.cookies;
+  deleteShared(`${username}-${repo}`);
+  res.json({
+    success: true,
+  });
+});
+
+// 生成分享链接
+router.post("/share", function (req, res) {
+  const { shareTo, auth } = req.body;
+  const { username, repo } = req.cookies;
+  if (!username || !repo) {
+    res.json({
+      success: false,
+      message: "无法获取用户名或仓库，请联系管理员",
+    });
+    return;
+  }
+
+  const key = `${username}-${repo}`;
+  const md5Code = md5(`${key}-${shareTo}-${auth}`);
+  setShared({
+    key,
+    shareTo,
+    auth,
+    md5: md5Code,
+  });
+
+  res.json({
+    success: true,
+    data: md5Code,
+  });
 });
 
 export default router;

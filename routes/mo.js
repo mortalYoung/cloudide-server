@@ -19,19 +19,22 @@ import {
   promisifySpawn,
   setShared,
   getShared,
-  deleteShared
+  deleteShared,
 } from "../utils/index.js";
 import { createGitStream } from "../task/gitStream.js";
 const router = Router();
 
 router.use("/", function (req, res, next) {
   const { username, repo } = req.cookies;
-  if (!username) {
-    res.json({
-      success: false,
-      message: "未登陆",
-    });
-    return;
+  const DONT_NEED_USERNAME = ["getShare"];
+  if (DONT_NEED_USERNAME.includes(req.url)) {
+    if (!username) {
+      res.json({
+        success: false,
+        message: "未登陆",
+      });
+      return;
+    }
   }
 
   const DONT_NEED_REPO = ["getRepo", "createRepo", "chooseRepo"];
@@ -310,6 +313,25 @@ router.post("/share", function (req, res) {
     success: true,
     data: md5Code,
   });
+});
+
+router.get("/getShare", function (req, res) {
+  const { shareId } = req.body;
+  const { username } = req.cookies;
+  const shared = getShared() || [];
+  const target = shared.find((s) => s.md5 === shareId);
+  if (!target || (target.shareTo && username !== shareTo)) {
+    res.json({
+      success: false,
+      message: "获取分享链接失败",
+    });
+    return;
+  }
+  res.json({
+    success: true,
+    data: target,
+  });
+  return;
 });
 
 export default router;
